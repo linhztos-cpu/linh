@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>奈米網紅生存戰 - 養成開發版</title>
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body { font-family: "Microsoft JhengHei", sans-serif; background-color: #f5f7fa; display: flex; justify-content: center; padding: 20px; }
+        #root { background: white; padding: 30px; border-radius: 15px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); max-width: 500px; width: 100%; }
+        .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 20px 0; }
+        .stat-card { padding: 10px; border-radius: 8px; background: #f8f9fa; border: 1px solid #eee; text-align: center; }
+        .btn-group { display: flex; gap: 10px; justify-content: center; margin-top: 20px; }
+        button { padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; transition: 0.3s; background: #4a90e2; color: white; }
+        button:hover { background: #357abd; transform: translateY(-2px); }
+        .event-box { margin-top: 20px; padding: 15px; border-radius: 8px; border-left: 5px solid #ff9f43; background: #fff5eb; animation: fadeIn 0.5s; }
+        .game-over { color: #e74c3c; text-align: center; }
+        canvas { max-width: 100%; height: auto !important; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef } = React;
+
+        const EVENT_POOL = [
+            { title: '🎥 影片爆紅！', desc: '演算法眷顧了你，但也讓你忙翻了。', effect: { followers: 500, health: -15, money: 0, grades: 0 } },
+            { title: '📝 突擊小考', desc: '這週都沒讀書，成績慘不忍睹。', effect: { followers: 0, health: -5, money: 0, grades: -20 } },
+            { title: '💰 業配邀約', desc: '接到一個廉價業配，賺了錢但粉絲覺得煩。', effect: { followers: -100, health: -5, money: 1200, grades: 0 } },
+            { title: '🤒 體力不支', desc: '你病倒了，被迫花錢看醫生並休息。', effect: { followers: -50, health: 10, money: -500, grades: -5 } }
+        ];
+
+        function App() {
+            const [day, setDay] = useState(1);
+            const [stats, setStats] = useState({ health: 80, followers: 1200, money: 2000, grades: 75 });
+            const [event, setEvent] = useState(null);
+            const [gameOver, setGameOver] = useState(false);
+            const chartRef = useRef(null);
+            const chartInstance = useRef(null);
+
+            // 初始化與更新 Chart.js
+            useEffect(() => {
+                const ctx = document.getElementById('radarChart');
+                if (chartInstance.current) chartInstance.current.destroy();
+
+                chartInstance.current = new Chart(ctx, {
+                    type: 'radar',
+                    data: {
+                        labels: ['健康', '粉絲(x10)', '金錢(x10)', '學業'],
+                        datasets: [{
+                            label: `Day ${day} 數值`,
+                            data: [stats.health, stats.followers / 10, stats.money / 10, stats.grades],
+                            backgroundColor: 'rgba(74, 144, 226, 0.2)',
+                            borderColor: 'rgba(74, 144, 226, 1)',
+                            borderWidth: 2,
+                            pointBackgroundColor: 'rgba(74, 144, 226, 1)'
+                        }]
+                    },
+                    options: {
+                        scales: { r: { min: 0, max: 150, ticks: { display: false } } },
+                        animation: { duration: 500 }
+                    }
+                });
+            }, [stats, day]);
+
+            const handleAction = (type) => {
+                if (gameOver) return;
+
+                let nextStats = { ...stats };
+                
+                // 基礎動作影響
+                if (type === 'VLOG') {
+                    nextStats.followers += 150;
+                    nextStats.health -= 20;
+                    nextStats.money -= 200;
+                } else if (type === 'STUDY') {
+                    nextStats.grades += 15;
+                    nextStats.health -= 10;
+                    nextStats.followers -= 30;
+                } else if (type === 'REST') {
+                    nextStats.health += 30;
+                    nextStats.followers -= 50;
+                    nextStats.money -= 50; // 生活費
+                }
+
+                // 隨機事件邏輯
+                let triggeredEvent = null;
+                if (Math.random() < 0.35) {
+                    triggeredEvent = EVENT_POOL[Math.floor(Math.random() * EVENT_POOL.length)];
+                    nextStats.followers = Math.max(0, nextStats.followers + triggeredEvent.effect.followers);
+                    nextStats.health = Math.max(0, nextStats.health + triggeredEvent.effect.health);
+                    nextStats.money = Math.max(0, nextStats.money + triggeredEvent.effect.money);
+                    nextStats.grades = Math.max(0, nextStats.grades + triggeredEvent.effect.grades);
+                }
+
+                // 數值邊界與遊戲結束判定
+                nextStats.health = Math.min(100, Math.max(0, nextStats.health));
+                nextStats.grades = Math.min(100, Math.max(0, nextStats.grades));
+                
+                setStats(nextStats);
+                setEvent(triggeredEvent);
+                setDay(day + 1);
+
+                if (nextStats.health <= 0 || nextStats.money <= 0) {
+                    setGameOver(true);
+                }
+            };
+
+            return (
+                <div>
+                    <h2 style={{ textAlign: 'center', color: '#333' }}>📅 第 {day} 天</h2>
+                    
+                    <canvas id="radarChart"></canvas>
+
+                    <div className="stats-grid">
+                        <div className="stat-card">❤️ 健康<br/><strong>{stats.health}%</strong></div>
+                        <div className="stat-card">📈 粉絲<br/><strong>{stats.followers}</strong></div>
+                        <div className="stat-card">💰 金錢<br/><strong>${stats.money}</strong></div>
+                        <div className="stat-card">🎓 學業<br/><strong>{stats.grades}分</strong></div>
+                    </div>
+
+                    {event && (
+                        <div className="event-box">
+                            <strong>{event.title}</strong>
+                            <p style={{ fontSize: '14px', margin: '5px 0' }}>{event.desc}</p>
+                        </div>
+                    )}
+
+                    {gameOver ? (
+                        <div className="game-over">
+                            <h3>🚫 遊戲結束 🚫</h3>
+                            <p>{stats.health <= 0 ? "你過勞住院了..." : "你破產了，必須賣掉相機去打工。"}</p>
+                            <button onClick={() => window.location.reload()} style={{ background: '#e74c3c' }}>重新挑戰</button>
+                        </div>
+                    ) : (
+                        <div className="btn-group">
+                            <button onClick={() => handleAction('VLOG')}>拍 VLOG</button>
+                            <button onClick={() => handleAction('STUDY')}>拼學業</button>
+                            <button onClick={() => handleAction('REST')}>休息</button>
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
